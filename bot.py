@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 # ---- Configurare din variabile de mediu (le setezi pe Railway) ----
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-GROUP_CHAT_ID = int(os.environ["GROUP_CHAT_ID"])
+GROUP_CHAT_ID = int(os.environ["GROUP_CHAT_ID"])  # grupul cu CLIENȚII (Maxim/Zevs)
+ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))  # grupul PRIVAT, doar admini
 
 DB_PATH = "clients.db"
 
@@ -74,6 +75,10 @@ async def generate_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Eroare: {e}")
 
 
+async def chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"ID-ul acestui chat este: {update.effective_chat.id}")
+
+
 # ---- Detectare membru nou ----
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cm = update.chat_member
@@ -101,11 +106,14 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     save_client(user.id, user.username, user.full_name, source)
 
     text = f"✅ {display_name} a venit prin {source}"
-    await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text)
+    await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=text)
 
 
 # ---- /stats ----
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_CHAT_ID:
+        return
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT source, COUNT(*) FROM clients GROUP BY source ORDER BY COUNT(*) DESC")
@@ -128,6 +136,9 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---- /cauta @username ----
 async def cauta(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_CHAT_ID:
+        return
+
     if not context.args:
         await update.message.reply_text("Folosire: /cauta @username")
         return
@@ -163,6 +174,7 @@ def main():
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("cauta", cauta))
     app.add_handler(CommandHandler("generate_links", generate_links))
+    app.add_handler(CommandHandler("id", chat_id_command))
 
     logger.info("Bot pornit...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
